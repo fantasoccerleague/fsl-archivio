@@ -535,13 +535,13 @@ function buildAndamento(k){
     andData[ck]={teams,N,pos,pts,T:teams.length,maxP:maxP||1};
   }
   if(!andSel[ck])andSel[ck]=new Set();
-  if(!andMetric[ck])andMetric[ck]='pos';
+  if(!andMetric[ck])andMetric[ck]='pts';
   const A=andData[ck],m=andMetric[ck];
   const chips=A.teams.map((t,i)=>`<span class="andchip" id="andc-${k}-${i}" onclick="toggleAnd('${k}',${i})"><i id="anddot-${k}-${i}" style="background:${andColor(i)}"></i>${esc(t)}</span>`).join('');
   document.getElementById('and-'+k).innerHTML=`
     <div class="and-head"><div class="panel-title" style="margin:0">Andamento \u2014 giornata per giornata</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <div class="tabs and-mtabs"><button class="${m==='pos'?'on':''}" data-m="pos" onclick="setMetric('${k}','pos')">Posizione</button><button class="${m==='pts'?'on':''}" data-m="pts" onclick="setMetric('${k}','pts')">Punti</button></div>
+        <div class="tabs and-mtabs"><button class="${m==='pts'?'on':''}" data-m="pts" onclick="setMetric('${k}','pts')">Punti</button><button class="${m==='pos'?'on':''}" data-m="pos" onclick="setMetric('${k}','pos')">Posizione</button></div>
         <button class="and-reset" onclick="resetAnd('${k}')">Mostra tutte</button></div></div>
     <p style="color:var(--muted);font-size:13px;margin:2px 0 12px" id="and-desc-${k}"></p>
     <div class="table-wrap" style="padding:14px"><div class="scroll" id="andsvg-${k}"></div></div>
