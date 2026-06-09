@@ -254,12 +254,27 @@ thead th.grp{text-align:center;color:var(--muted);font-size:10px;letter-spacing:
 .reg-p{color:var(--muted);font-size:14px;line-height:1.62;margin-bottom:7px}
 .reg-li{color:var(--muted);font-size:14px;line-height:1.55;margin:3px 0 3px 4px;padding-left:15px;position:relative}
 .reg-li::before{content:"\2022";position:absolute;left:2px;color:var(--green);font-weight:700}
+
+.nav-inner{height:auto;min-height:64px}
+.navwrap{margin-left:auto;display:flex;flex-direction:column;gap:5px;align-items:flex-end}
+.navwrap .links{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;margin:0}
+.navwrap .lfixed a{font-size:12.5px;color:var(--faint);padding:5px 11px}
+.navwrap .lfixed a:hover{color:var(--ink)}
+.navwrap .lcomp a{font-size:13.5px}
+@media(max-width:860px){
+  .navwrap{order:4;flex-basis:100%;width:100%;display:none;flex-direction:column;gap:11px;margin:0;padding-top:9px;border-top:1px solid var(--line);align-items:stretch}
+  body.navopen .navwrap{display:flex}
+  .navwrap .links{flex-direction:column;gap:3px;justify-content:flex-start;align-items:stretch}
+  .navwrap .lcomp{border-top:1px dashed var(--line2);padding-top:11px}
+  .navwrap .links a{padding:13px 12px;font-size:15.5px;border-radius:10px;white-space:normal;color:var(--ink)}
+  .navwrap .lfixed a{color:var(--ink)}
+}
 </style></head><body>
 <header class="nav"><div class="nav-inner">
   <div class="brand" onclick="go('home')"><img class="crest" id="navcrest" alt="FSL"><div><b>FANTA SOCCER LEAGUE</b><span>Archivio Storico</span></div></div>
   <button class="navtoggle" id="navtoggle" aria-label="Apri menu" onclick="document.body.classList.toggle('navopen')"><span></span><span></span><span></span></button>
   <select class="season-select" id="seasonSelect" onchange="loadSeason(this.value)"></select>
-  <nav class="links" id="navlinks"></nav>
+  <div class="navwrap" id="navwrap"><nav class="links lfixed" id="navfixed"></nav><nav class="links lcomp" id="navcomp"></nav></div>
 </div></header>
 <main id="main"></main>
 <footer><div>FANTA SOCCER LEAGUE · Archivio Storico</div><div>Dati dagli Excel/immagini ufficiali della lega &middot; alcune stagioni storiche solo classifica</div></footer>
@@ -280,7 +295,7 @@ let state={}, gcur={};
 
 function go(v){document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));
   const el=document.getElementById('v-'+v); if(el)el.classList.add('active');
-  document.querySelectorAll('#navlinks a').forEach(a=>a.classList.toggle('active',a.dataset.v===v));
+  document.querySelectorAll('#navwrap a').forEach(a=>a.classList.toggle('active',a.dataset.v===v));
   document.body.classList.remove('navopen');
   window.scrollTo({top:0,behavior:'smooth'});}
 
@@ -305,14 +320,16 @@ const HOME=`<section class="view active" id="v-home">
 
 function buildShell(){
   const d=D();
-  let links='<a data-v="home" onclick="go(\'home\')">Home</a>';
-  d.leagues.forEach(L=>links+=`<a data-v="${L.key}" onclick="go('${L.key}')">${L.name}</a>`);
-  d.cups.forEach(C=>links+=`<a data-v="${C.key}" onclick="go('${C.key}')">${C.name}</a>`);
-  links+=`<a data-v="RK" onclick="go('RK')">Ranking</a>`;
-  links+=`<a data-v="ALBO" onclick="go('ALBO')">Albo d'Oro</a>`;
-  links+=`<a data-v="SQUADRE" onclick="go('SQUADRE')">Squadre</a>`;
-  links+=`<a data-v="REGOLAMENTO" onclick="go('REGOLAMENTO')">Regolamento</a>`;
-  document.getElementById('navlinks').innerHTML=links;
+  let fixed='<a data-v="home" onclick="go(\'home\')">Home</a>';
+  fixed+=`<a data-v="REGOLAMENTO" onclick="go('REGOLAMENTO')">Regolamento</a>`;
+  fixed+=`<a data-v="ALBO" onclick="go('ALBO')">Albo d'Oro</a>`;
+  fixed+=`<a data-v="RK" onclick="go('RK')">Ranking</a>`;
+  fixed+=`<a data-v="SQUADRE" onclick="go('SQUADRE')">Squadre</a>`;
+  let comp='';
+  d.leagues.forEach(L=>comp+=`<a data-v="${L.key}" onclick="go('${L.key}')">${L.name}</a>`);
+  d.cups.forEach(C=>comp+=`<a data-v="${C.key}" onclick="go('${C.key}')">${C.name}</a>`);
+  document.getElementById('navfixed').innerHTML=fixed;
+  document.getElementById('navcomp').innerHTML=comp;
   const _nc=document.getElementById('navcrest');if(_nc&&_nc.tagName==='IMG'&&!_nc.getAttribute('src'))_nc.src=LOGO;
 
   let html=HOME;
