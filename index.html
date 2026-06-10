@@ -325,6 +325,7 @@ function buildShell(){
   fixed+=`<a data-v="REGOLAMENTO" onclick="go('REGOLAMENTO')">Regolamento</a>`;
   fixed+=`<a data-v="ALBO" onclick="go('ALBO')">Albo d'Oro</a>`;
   fixed+=`<a data-v="RK" onclick="go('RK')">Ranking</a>`;
+  fixed+=`<a data-v="STATALL" onclick="go('STATALL')">Statistiche</a>`;
   fixed+=`<a data-v="SQUADRE" onclick="go('SQUADRE')">Squadre</a>`;
   let comp='';
   d.leagues.forEach(L=>comp+=`<a data-v="${L.key}" onclick="go('${L.key}')">${L.name}</a>`);
@@ -377,6 +378,11 @@ function buildShell(){
    <section class="view" id="v-ALBO">
      <div class="sec-head"><div><div class="kicker">Tutte le stagioni</div><h2>Albo d'Oro</h2></div><p>Bacheca dei trofei e campioni stagione per stagione. Clicca una squadra per il profilo.</p></div>
      <div id="albo-wrap"></div>
+     <div class="back" onclick="go('home')">&larr; Torna alla Home</div>
+   </section>
+   <section class="view" id="v-STATALL">
+     <div class="sec-head"><div><div class="kicker">Tutte le stagioni</div><h2>Statistiche</h2></div><p>Record, primati e curiosit\u00e0 di sempre della Lega.</p></div>
+     <div id="statall-wrap"></div>
      <div class="back" onclick="go('home')">&larr; Torna alla Home</div>
    </section>
    <section class="view" id="v-SQUADRE">
@@ -581,7 +587,16 @@ function drawAnd(k){
 }
 /* ===== statistiche campionato ===== */
 function goalsFsl(p){return Math.max(0,Math.floor((p-60)/6));}
-const num2 = v => (typeof v==='number'? v.toFixed(2).replace('.',','):v);
+const num2=v=>(typeof v==='number'?v.toFixed(2).replace('.',','):v);
+function recInit(){return {best:null,list:[]};}
+function recPush(R,v,o,mode){if(R.best===null||(mode==='min'?v<R.best:v>R.best)){R.best=v;R.list=[o];}else if(v===R.best){R.list.push(o);}}
+function extRows(arr,k,mode,filt){let a=filt?arr.filter(filt):arr.slice();if(!a.length)return{best:null,list:[]};let v=a[0][k];a.forEach(x=>{if(mode==='min'?x[k]<v:x[k]>v)v=x[k];});return{best:v,list:a.filter(x=>x[k]===v)};}
+function recCard(ic,lab,R,valTxt,fmtName,fmtCtx){
+  const seen={},hs=[];(R.list||[]).forEach(o=>{const key=fmtName(o)+'||'+(fmtCtx?fmtCtx(o):'');if(!seen[key]){seen[key]=1;hs.push(o);}});
+  if(hs.length<=1){const o=hs[0],c=(o&&fmtCtx)?fmtCtx(o):'';return{ic,lab,big:o?fmtName(o):'\u2013',sub:(R.best!=null?valTxt(R.best):'')+(c?' \u00b7 '+c:'')};}
+  return{ic,lab,sm:1,big:valTxt(R.best),sub:hs.map(o=>{const c=fmtCtx?fmtCtx(o):'';return fmtName(o)+(c?' <span style="opacity:.7">('+c+')</span>':'');}).join('  \u00b7  ')};
+}
+function cardHTML(cards){return '<div class="hi-grid">'+cards.map(c=>`<div class="hi-card"><div class="hi-ic">${c.ic}</div><div class="hi-lab">${c.lab}</div><div class="hi-big${c.sm?' sm':''}">${c.big}</div><div class="hi-sub">${c.sub}</div></div>`).join('')+'</div>';}
 const statData={};
 function computeStats(L){
   const ck=CUR+'|'+L.key;if(statData[ck])return statData[ck];
@@ -589,7 +604,7 @@ function computeStats(L){
   const reale={},tot={},gf={},gs={},gg={},mf={},pf2={},ms={},ps={},exp={};
   teams.forEach(t=>{reale[t]=0;tot[t]=0;gf[t]=0;gs[t]=0;gg[t]=0;mf[t]=0;pf2[t]=0;ms[t]=0;ps[t]=0;exp[t]=0;});
   const r3=(rh,ra)=>rh>ra?[3,0]:rh<ra?[0,3]:[1,1];const p3=(x,y)=>x>y?3:x<y?0:1;
-  let hi={hscore:null,lscore:null,goals:null,margin:null};
+  const hi={hscore:recInit(),lscore:recInit(),goals:recInit(),margin:recInit()};
   Object.keys(L.cal).forEach(gk=>{
     const round=L.cal[gk];const day=[];
     round.forEach(m=>{const h=m[0],a=m[1],gh=m[2],ga=m[3],ph=+m[4]||0,pa=+m[5]||0;
@@ -597,9 +612,10 @@ function computeStats(L){
       const rr=r3(gh,ga);reale[h]+=rr[0];reale[a]+=rr[1];
       const tt=r3(goalsFsl(ph-2),goalsFsl(pa));tot[h]+=tt[0];tot[a]+=tt[1];
       day.push({t:h,f:ph,opp:a,gr:goalsFsl(ph-2)});day.push({t:a,f:pa,opp:h,gr:goalsFsl(pa)});
-      const tg=gh+ga;if(!hi.goals||tg>hi.goals.tot)hi.goals={h,a,gh,ga,tot:tg,g:gk};
-      const mg=Math.abs(gh-ga);if(mg>0&&(!hi.margin||mg>hi.margin.m)){const win=gh>=ga;hi.margin={h:win?h:a,a:win?a:h,gh:win?gh:ga,ga:win?ga:gh,m:mg,g:gk};}
-      [[h,ph],[a,pa]].forEach(x=>{if(!hi.hscore||x[1]>hi.hscore.v)hi.hscore={t:x[0],v:x[1],g:gk};if(!hi.lscore||x[1]<hi.lscore.v)hi.lscore={t:x[0],v:x[1],g:gk};});});
+      const tg=gh+ga;recPush(hi.goals,tg,{h,a,gh,ga,g:gk},'max');
+      const mg=Math.abs(gh-ga);if(mg>0){const w=gh>=ga;recPush(hi.margin,mg,{h:w?h:a,a:w?a:h,gh:w?gh:ga,ga:w?ga:gh,g:gk},'max');}
+      recPush(hi.hscore,ph,{t:h,g:gk},'max');recPush(hi.hscore,pa,{t:a,g:gk},'max');
+      if(ph>0)recPush(hi.lscore,ph,{t:h,g:gk},'min');if(pa>0)recPush(hi.lscore,pa,{t:a,g:gk},'min');});
     if(day.length){const maxF=Math.max.apply(null,day.map(d=>d.f)),minF=Math.min.apply(null,day.map(d=>d.f));
       day.forEach(d=>{if(d.f===maxF){mf[d.t]++;ms[d.opp]++;}if(d.f===minF){pf2[d.t]++;ps[d.opp]++;}});
       const n=day.length;day.forEach(d=>{let s=0;day.forEach(e=>{if(e!==d)s+=p3(d.gr,e.gr);});exp[d.t]+=s/(n-1);});}
@@ -629,22 +645,20 @@ function statSortClick(e){const th=e.target.closest?e.target.closest('th[data-tb
 function buildStat(k){
   const L=D().leagues.find(x=>x.key===k);if(!L)return;const S=computeStats(L);const R=S.rows,hi=S.hi;
   if(!window._ssb){window._ssb=1;document.addEventListener('click',statSortClick);}
-  const nm=r=>`<td class="team">${tl(r.t)}</td>`;
-  const best=(key,mode)=>R.slice().sort((a,b)=>mode==='min'?a[key]-b[key]:b[key]-a[key])[0];
-  const aiut=best('gap','max'),pen=best('gap','min'),fort=best('fortuna','max'),sfo=best('fortuna','min'),att=best('gf','max'),dif=best('gs','min');
+  const ctxG=o=>'Giornata '+o.g,nmt=o=>tl(o.t),mm=o=>tl(o.h)+' <b>'+o.gh+'\u2013'+o.ga+'</b> '+tl(o.a);
   const cards=[
-    {ic:'\ud83d\udd25',lab:'Punteggio pi\u00f9 alto di giornata',big:tl(hi.hscore.t),sub:num(hi.hscore.v)+' punti \u00b7 Giornata '+hi.hscore.g},
-    {ic:'\ud83e\udd76',lab:'Punteggio pi\u00f9 basso di giornata',big:tl(hi.lscore.t),sub:num(hi.lscore.v)+' punti \u00b7 Giornata '+hi.lscore.g},
-    {ic:'\u26bd',lab:'Gara con pi\u00f9 gol',sm:1,big:tl(hi.goals.h)+' <b>'+hi.goals.gh+'\u2013'+hi.goals.ga+'</b> '+tl(hi.goals.a),sub:hi.goals.tot+' gol totali \u00b7 Giornata '+hi.goals.g},
-    {ic:'\ud83d\udca5',lab:'Vittoria pi\u00f9 larga',sm:1,big:tl(hi.margin.h)+' <b>'+hi.margin.gh+'\u2013'+hi.margin.ga+'</b> '+tl(hi.margin.a),sub:'scarto di '+hi.margin.m+' gol \u00b7 Giornata '+hi.margin.g},
-    {ic:'\ud83c\udf40',lab:'Pi\u00f9 aiutata dal +2',big:tl(aiut.t),sub:(aiut.gap>0?'+':'')+aiut.gap+' punti grazie al +2'},
-    {ic:'\ud83d\udc94',lab:'Pi\u00f9 penalizzata dal +2',big:tl(pen.t),sub:pen.gap+' punti per colpa del +2'},
-    {ic:'\ud83c\udf08',lab:'Squadra pi\u00f9 fortunata',big:tl(fort.t),sub:(fort.fortuna>0?'+':'')+num(fort.fortuna)+' punti sul merito atteso'},
-    {ic:'\ud83d\ude2d',lab:'Squadra pi\u00f9 sfortunata',big:tl(sfo.t),sub:num(sfo.fortuna)+' punti sul merito atteso'},
-    {ic:'\ud83c\udfaf',lab:'Miglior attacco',big:tl(att.t),sub:num(att.gf)+' punti fatti \u00b7 media '+num2(att.avgF)},
-    {ic:'\ud83e\uddf1',lab:'Miglior difesa',big:tl(dif.t),sub:num(dif.gs)+' punti subiti \u00b7 media '+num2(dif.avgS)}
+    recCard('\ud83d\udd25','Punteggio pi\u00f9 alto di giornata',hi.hscore,b=>num(b)+' punti',nmt,ctxG),
+    recCard('\ud83e\udd76','Punteggio pi\u00f9 basso di giornata',hi.lscore,b=>num(b)+' punti',nmt,ctxG),
+    recCard('\u26bd','Gara con pi\u00f9 gol',hi.goals,b=>b+' gol totali',mm,ctxG),
+    recCard('\ud83d\udca5','Vittoria pi\u00f9 larga',hi.margin,b=>'scarto di '+b+' gol',mm,ctxG),
+    recCard('\ud83c\udf40','Pi\u00f9 aiutata dal +2',extRows(R,'gap','max'),b=>(b>0?'+':'')+b+' punti dal +2',nmt),
+    recCard('\ud83d\udc94','Pi\u00f9 penalizzata dal +2',extRows(R,'gap','min'),b=>b+' punti dal +2',nmt),
+    recCard('\ud83c\udf08','Squadra pi\u00f9 fortunata',extRows(R,'fortuna','max'),b=>(b>0?'+':'')+num(b)+' sul merito atteso',nmt),
+    recCard('\ud83d\ude2d','Squadra pi\u00f9 sfortunata',extRows(R,'fortuna','min'),b=>num(b)+' sul merito atteso',nmt),
+    recCard('\ud83c\udfaf','Miglior attacco',extRows(R,'gf','max'),b=>num(b)+' punti fatti',nmt,o=>'media '+num2(o.avgF)),
+    recCard('\ud83e\uddf1','Miglior difesa',extRows(R,'gs','min'),b=>num(b)+' punti subiti',nmt,o=>'media '+num2(o.avgS))
   ];
-  const cardsH='<div class="hi-grid">'+cards.map(c=>`<div class="hi-card"><div class="hi-ic">${c.ic}</div><div class="hi-lab">${c.lab}</div><div class="hi-big${c.sm?' sm':''}">${c.big}</div><div class="hi-sub">${c.sub}</div></div>`).join('')+'</div>';
+  const nm=r=>`<td class="team">${tl(r.t)}</td>`;
   const idB='stbl_'+k+'_b',idF='stbl_'+k+'_f',idD='stbl_'+k+'_d';
   STAT_TBL[idB]={minw:440,sortK:'reale',dir:'desc',rows:R,cols:[
     {k:'t',label:'Squadra',align:'left',val:r=>r.t,cell:nm},
@@ -665,7 +679,7 @@ function buildStat(k){
     {k:'ps',label:'Sub\u00ecto',group:'Peggior punteggio',defaultDir:'desc',cell:r=>`<td style="color:var(--green);font-weight:700">${r.ps||0}</td>`}]};
   document.getElementById('stat-'+k).innerHTML=`
    <div class="panel-title" style="margin-top:4px">In sintesi</div>
-   ${cardsH}
+   ${cardHTML(cards)}
    <div class="panel-title" style="margin-top:22px">Impatto del bonus +2 in casa</div>
    <p class="stat-note"><b>Senza +2</b>: punti che la squadra avrebbe ottenuto se il bonus casa non esistesse \u00b7 <b>Reali</b>: punti effettivi \u00b7 <b>Gap</b>: differenza (verde = ha beneficiato del +2, rosso = penalizzato).</p>
    <div class="table-wrap"><div class="scroll" id="${idB}"></div></div>
@@ -677,6 +691,111 @@ function buildStat(k){
    <p class="stat-note" style="margin-top:16px">Clicca sull'intestazione di una colonna per ordinare. \u201cFortuna\u201d confronta i punti reali con quelli attesi giocando ogni giornata contro la media del campionato (senza +2): pi\u00f9 del previsto = fortunata, meno = sfortunata.</p>`;
   renderStatTable(idB);renderStatTable(idF);renderStatTable(idD);
 }
+/* ===== statistiche all-time ===== */
+let ALLT=null;
+function computeAllTime(){
+  if(ALLT)return ALLT;
+  const isP=L=>/^serie/i.test(L.name);
+  const car={};const C=t=>car[t]||(car[t]={t,st:0,pt:0,g:0,v:0,n:0,p:0,gf:0,gs:0,vf:0,vg:0,gap:0,fort:0});
+  const r3=(x,y)=>x>y?[3,0]:x<y?[0,3]:[1,1];const p3=(x,y)=>x>y?3:x<y?0:1;
+  const recHi=recInit(),recLo=recInit(),recGoals=recInit(),recMargin=recInit(),recPt=recInit(),recAtt=recInit(),recDif=recInit(),stW=recInit(),stU=recInit(),stL=recInit();
+  Object.keys(SEASONS).forEach(sk=>{
+    SEASONS[sk].leagues.forEach(L=>{
+      if(!isP(L))return;
+      (L.generale||[]).forEach(r=>{const c=C(r[1]);c.st++;c.pt+=r[2];c.g+=r[3];c.v+=r[4];c.n+=r[5];c.p+=r[6];c.gf+=r[7];c.gs+=r[8];});
+      const cal=(L.cal&&Object.keys(L.cal).length)?L.cal:null;if(!cal)return;
+      (L.generale||[]).forEach(r=>{recPush(recPt,r[2],{t:r[1],sk,comp:L.name},'max');recPush(recAtt,r[7],{t:r[1],sk,comp:L.name},'max');recPush(recDif,r[8],{t:r[1],sk,comp:L.name},'min');});
+      const hasPf=Object.values(cal).some(g=>g.some(m=>(+m[4]||0)>0||(+m[5]||0)>0));
+      const seq={},reale={},tot={},exp={};
+      Object.keys(cal).forEach(gk=>{
+        const day=[];
+        cal[gk].forEach(m=>{const h=m[0],a=m[1],gh=m[2],ga=m[3],ph=+m[4]||0,pa=+m[5]||0;
+          recPush(recGoals,gh+ga,{h,a,gh,ga,sk,comp:L.name,g:gk},'max');
+          const mg=Math.abs(gh-ga);if(mg>0){const w=gh>=ga;recPush(recMargin,mg,{h:w?h:a,a:w?a:h,gh:w?gh:ga,ga:w?ga:gh,sk,comp:L.name,g:gk},'max');}
+          (seq[h]=seq[h]||[]).push(gh>ga?'W':gh<ga?'P':'N');(seq[a]=seq[a]||[]).push(ga>gh?'W':ga<gh?'P':'N');
+          const rr=r3(gh,ga);reale[h]=(reale[h]||0)+rr[0];reale[a]=(reale[a]||0)+rr[1];
+          if(hasPf){const tt=r3(goalsFsl(ph-2),goalsFsl(pa));tot[h]=(tot[h]||0)+tt[0];tot[a]=(tot[a]||0)+tt[1];
+            C(h).vf+=ph;C(h).vg++;C(a).vf+=pa;C(a).vg++;
+            recPush(recHi,ph,{t:h,sk,comp:L.name,g:gk},'max');if(ph>0)recPush(recLo,ph,{t:h,sk,comp:L.name,g:gk},'min');
+            recPush(recHi,pa,{t:a,sk,comp:L.name,g:gk},'max');if(pa>0)recPush(recLo,pa,{t:a,sk,comp:L.name,g:gk},'min');
+            day.push({t:h,gr:goalsFsl(ph-2)});day.push({t:a,gr:goalsFsl(pa)});}});
+        if(hasPf&&day.length){const n=day.length;day.forEach(d=>{let s=0;day.forEach(e=>{if(e!==d)s+=p3(d.gr,e.gr);});exp[d.t]=(exp[d.t]||0)+s/(n-1);});}
+      });
+      Object.keys(seq).forEach(t=>{let w=0,u=0,l=0;seq[t].forEach(o=>{w=o==='W'?w+1:0;u=(o==='W'||o==='N')?u+1:0;l=o==='P'?l+1:0;recPush(stW,w,{t,sk,comp:L.name},'max');recPush(stU,u,{t,sk,comp:L.name},'max');recPush(stL,l,{t,sk,comp:L.name},'max');});});
+      if(hasPf)Object.keys(reale).forEach(t=>{C(t).gap+=(reale[t]||0)-(tot[t]||0);C(t).fort+=(reale[t]||0)-(exp[t]||0);});
+    });
+  });
+  const M={};const add=(t,c)=>{if(!t)return;(M[t]=M[t]||{})[c]=(M[t][c]||0)+1;};
+  const AU=(typeof ALBO_UFF!=='undefined')?ALBO_UFF:{camp:[],cl:[],cc:[],to:[],sci:[]};
+  (AU.camp||[]).forEach(c=>{add(c.A,'A');add(c.B,'B');add(c.C,'C');});
+  (AU.cl||[]).forEach(c=>add(c.win,'CL'));(AU.cc||[]).forEach(c=>add(c.win,'CC'));(AU.to||[]).forEach(c=>add(c.win,'TO'));(AU.sci||[]).forEach(c=>add(c.win,'SC'));
+  const r1=v=>Math.round(v*10)/10;
+  const rows=Object.values(car).map(c=>Object.assign({},c,{dg:c.gf-c.gs,ppg:c.g?c.pt/c.g:0,mv:c.vg?c.vf/c.vg:0,fort:r1(c.fort)}));
+  rows.sort((a,b)=>b.pt-a.pt);rows.forEach((r,i)=>r._pos=i);
+  const tit=Object.keys(M).map(t=>({t,tot:Object.keys(M[t]).reduce((a,k)=>a+M[t][k],0),A:M[t].A||0}));
+  ALLT={rows,recHi,recLo,recGoals,recMargin,recPt,recAtt,recDif,stW,stU,stL,titTot:extRows(tit,'tot','max'),titA:extRows(tit,'A','max',o=>o.A>0)};return ALLT;
+}
+function renderStatAll(){
+  const W=document.getElementById('statall-wrap');if(!W)return;const AT=computeAllTime();const R=AT.rows;
+  if(!window._ssb){window._ssb=1;document.addEventListener('click',statSortClick);}
+  const nmt=o=>tl(o.t),mm=o=>tl(o.h)+' <b>'+o.gh+'\u2013'+o.ga+'</b> '+tl(o.a),ctxA=o=>o.comp+' '+seasLabel(o.sk)+(o.g?(' \u00b7 G'+o.g):''),ctxS=o=>o.comp+' '+seasLabel(o.sk);
+  const cards=[
+    recCard('\ud83d\udd25','Punteggio pi\u00f9 alto di sempre',AT.recHi,b=>num(b)+' punti',nmt,ctxA),
+    recCard('\ud83e\udd76','Punteggio pi\u00f9 basso di sempre',AT.recLo,b=>num(b)+' punti',nmt,ctxA),
+    recCard('\u26bd','Gara con pi\u00f9 gol',AT.recGoals,b=>b+' gol',mm,ctxA),
+    recCard('\ud83d\udca5','Vittoria pi\u00f9 larga',AT.recMargin,b=>'scarto di '+b,mm,ctxA),
+    recCard('\ud83c\udfc5','Record di punti in una stagione',AT.recPt,b=>b+' punti',nmt,ctxS),
+    recCard('\ud83c\udfaf','Miglior attacco in una stagione',AT.recAtt,b=>b+' gol fatti',nmt,ctxS),
+    recCard('\ud83e\uddf1','Miglior difesa in una stagione',AT.recDif,b=>b+' gol subiti',nmt,ctxS),
+    recCard('\ud83d\udcc8','Pi\u00f9 vittorie di fila',AT.stW,b=>b+' vittorie',nmt,ctxS),
+    recCard('\ud83d\udd12','Imbattibilit\u00e0 pi\u00f9 lunga',AT.stU,b=>b+' risultati utili',nmt,ctxS),
+    recCard('\ud83d\udcc9','Peggior serie di sconfitte',AT.stL,b=>b+' ko di fila',nmt,ctxS),
+    recCard('\ud83c\udfc6','Squadra pi\u00f9 titolata',AT.titTot,b=>b+' trofei',nmt),
+    recCard('\ud83d\udc51','Pi\u00f9 titoli di Serie A',AT.titA,b=>b+' campionati di Serie A',nmt),
+    recCard('\ud83d\uddd3\ufe0f','Pi\u00f9 presenze',extRows(R,'st','max'),b=>b+' stagioni',nmt),
+    recCard('\u26bd','Pi\u00f9 gol fatti di sempre',extRows(R,'gf','max'),b=>b+' gol in carriera',nmt),
+    recCard('\ud83c\udf93','Miglior fantamedia all-time',extRows(R,'mv','max',r=>r.vg>=38),b=>num2(b)+' di media',nmt,o=>o.vg+' gare'),
+    recCard('\ud83c\udf40','Pi\u00f9 aiutata dal +2',extRows(R,'gap','max',r=>r.vg>0),b=>(b>0?'+':'')+b+' punti dal +2',nmt),
+    recCard('\ud83d\udc94','Pi\u00f9 penalizzata dal +2',extRows(R,'gap','min',r=>r.vg>0),b=>b+' punti dal +2',nmt),
+    recCard('\ud83c\udf08','Pi\u00f9 fortunata all-time',extRows(R,'fort','max',r=>r.vg>0),b=>(b>0?'+':'')+num(b)+' sul merito atteso',nmt),
+    recCard('\ud83d\ude2d','Pi\u00f9 sfortunata all-time',extRows(R,'fort','min',r=>r.vg>0),b=>num(b)+' sul merito atteso',nmt)
+  ];
+  const nm=r=>`<td class="team">${tl(r.t)}</td>`;
+  STAT_TBL['atbl_perp']={minw:780,sortK:'pt',dir:'desc',rows:R,cols:[
+    {k:'t',label:'Squadra',align:'left',val:r=>r.t,cell:nm},
+    {k:'st',label:'St.',defaultDir:'desc',cell:r=>`<td>${r.st}</td>`},
+    {k:'pt',label:'Pt',defaultDir:'desc',cell:r=>`<td class="pts">${r.pt}</td>`},
+    {k:'g',label:'G',defaultDir:'desc',cell:r=>`<td>${r.g}</td>`},
+    {k:'v',label:'V',defaultDir:'desc',cell:r=>`<td>${r.v}</td>`},
+    {k:'n',label:'N',defaultDir:'desc',cell:r=>`<td>${r.n}</td>`},
+    {k:'p',label:'P',defaultDir:'desc',cell:r=>`<td>${r.p}</td>`},
+    {k:'gf',label:'GF',defaultDir:'desc',cell:r=>`<td>${r.gf}</td>`},
+    {k:'gs',label:'GS',defaultDir:'asc',cell:r=>`<td>${r.gs}</td>`},
+    {k:'dg',label:'DG',defaultDir:'desc',cell:r=>`<td class="dg ${r.dg>0?'pos-v':r.dg<0?'neg-v':''}">${r.dg>0?'+':''}${r.dg}</td>`},
+    {k:'ppg',label:'Pt/G',defaultDir:'desc',cell:r=>`<td style="color:var(--muted)">${num2(r.ppg)}</td>`}]};
+  STAT_TBL['atbl_mv']={minw:420,sortK:'mv',dir:'desc',rows:R.filter(r=>r.vg>=38),cols:[
+    {k:'t',label:'Squadra',align:'left',val:r=>r.t,cell:nm},
+    {k:'vg',label:'Gare',defaultDir:'desc',cell:r=>`<td>${r.vg}</td>`},
+    {k:'mv',label:'Fantamedia',defaultDir:'desc',cell:r=>`<td class="pts">${num2(r.mv)}</td>`}]};
+  STAT_TBL['atbl_fl']={minw:440,sortK:'fort',dir:'desc',rows:R.filter(r=>r.vg>0),cols:[
+    {k:'t',label:'Squadra',align:'left',val:r=>r.t,cell:nm},
+    {k:'gap',label:'Bilancio +2',defaultDir:'desc',cell:r=>`<td class="dg ${r.gap>0?'pos-v':r.gap<0?'neg-v':''}">${r.gap>0?'+':''}${r.gap}</td>`},
+    {k:'fort',label:'Fortuna',defaultDir:'desc',cell:r=>`<td class="dg ${r.fort>0?'pos-v':r.fort<0?'neg-v':''}">${r.fort>0?'+':''}${num(r.fort)}</td>`}]};
+  W.innerHTML=`
+   <div class="panel-title" style="margin-top:2px">Record di sempre</div>
+   <p class="stat-note">Record e curiosit\u00e0 su tutte le 20 stagioni della piramide (Serie A/B/C); a parit\u00e0 di primato sono mostrati tutti i co-detentori. I record di punteggio, striscia e singola stagione considerano l'era con i tabellini disponibili.</p>
+   ${cardHTML(cards)}
+   <div class="panel-title" style="margin-top:24px">Classifica perpetua</div>
+   <p class="stat-note">Somma di tutte le stagioni di lega: <b>St.</b> stagioni disputate \u00b7 <b>Pt/G</b> media punti a partita.</p>
+   <div class="table-wrap"><div class="scroll" id="atbl_perp"></div></div>
+   <div class="panel-title" style="margin-top:24px">Fantamedia all-time</div>
+   <p class="stat-note">Media dei punti fantacalcio realizzati a partita in carriera (minimo 38 gare).</p>
+   <div class="table-wrap"><div class="scroll" id="atbl_mv"></div></div>
+   <div class="panel-title" style="margin-top:24px">Bilancio +2 e Fortuna in carriera</div>
+   <p class="stat-note"><b>Bilancio +2</b>: punti guadagnati/persi nella storia per il bonus casa \u00b7 <b>Fortuna</b>: scarto tra punti reali e attesi su tutte le stagioni con tabellini.</p>
+   <div class="table-wrap"><div class="scroll" id="atbl_fl"></div></div>`;
+  renderStatTable('atbl_perp');renderStatTable('atbl_mv');renderStatTable('atbl_fl');
+}
 document.head.insertAdjacentHTML('beforeend','<style>'
 +'.hi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(225px,1fr));gap:14px;margin:6px 0 4px}'
 +'.hi-card{position:relative;overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px;box-shadow:0 1px 2px rgba(20,50,80,.05)}'
@@ -684,11 +803,13 @@ document.head.insertAdjacentHTML('beforeend','<style>'
 +'.hi-ic{font-size:23px;line-height:1}'
 +'.hi-lab{margin-top:11px;font-size:10.5px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}'
 +'.hi-big{margin-top:5px;font-family:"Anton",sans-serif;font-weight:400;font-size:22px;letter-spacing:.4px;color:var(--ink);line-height:1.12;position:relative}'
-+'.hi-big.sm{font-size:15.5px}'
++'.hi-big.sm{font-size:15.5px;line-height:1.25}'
 +'.hi-big .tl{color:var(--ink);font:inherit;cursor:pointer}'
 +'.hi-big .tl:hover{color:var(--blue)}'
 +'.hi-big b{color:var(--green-deep)}'
-+'.hi-sub{margin-top:6px;font-size:13px;font-weight:600;color:var(--gold);position:relative}'
++'.hi-sub{margin-top:6px;font-size:13px;font-weight:600;color:var(--gold);position:relative;line-height:1.5}'
++'.hi-sub .tl{color:inherit;cursor:pointer}.hi-sub .tl:hover{color:var(--blue)}'
++'.hi-sub b{color:var(--green-deep)}'
 +'.stat-note{color:var(--muted);font-size:13px;margin:2px 0 10px}'
 +'th.sortable{cursor:pointer;user-select:none;white-space:nowrap}'
 +'th.sortable:hover{color:var(--blue)}'
@@ -958,7 +1079,7 @@ function loadSeason(key){
   buildShell(); applyHome(); bindTabs();
   D().leagues.forEach(L=>{renderClass(L.key);if(L.cal&&Object.keys(L.cal).length)buildExp(L.key);});
   D().cups.forEach(C=>renderCup(C));
-  renderRK(); renderAlbo(); renderSquadre(); renderRegolamento();
+  renderRK(); renderAlbo(); renderStatAll(); renderSquadre(); renderRegolamento();
   go('home');
 }
 
