@@ -768,7 +768,7 @@ function renderAlbo(){
   const cY=v=>v?'<b style="color:var(--gold)">'+v+'</b>':dot;
   const cG=v=>v?'<b style="color:var(--green)">'+v+'</b>':dot;
   const rows=Object.entries(M).map(([team,m])=>({team,m,tot:cols.reduce((a,c)=>a+(m[c]||0),0),cf:cfsl(m)}))
-    .sort((a,b)=>b.tot-a.tot||b.cf-a.cf||(b.m['Serie A']||0)-(a.m['Serie A']||0)||a.team.localeCompare(b.team));
+    .sort((a,b)=>b.cf-a.cf||(b.m['Coppa di Lega']||0)-(a.m['Coppa di Lega']||0)||(b.m['Coppa Campioni']||0)-(a.m['Coppa Campioni']||0)||(b.m['Torneo Open']||0)-(a.m['Torneo Open']||0)||(b.m['Super Coppa']||0)-(a.m['Super Coppa']||0)||b.tot-a.tot||a.team.localeCompare(b.team));
   const head='<tr><th class="pos">#</th><th class="lft">Squadra</th><th class="pts">Camp. FSL</th>'+divCols.map(c=>`<th>${c}</th>`).join('')+othCols.map(c=>`<th>${c}</th>`).join('')+'<th class="pts">Tot</th></tr>';
   const body=rows.map((r,i)=>`<tr><td class="pos">${i+1}</td><td class="team">${tlIf(r.team)}</td>`+
     `<td class="pts" style="color:var(--green)">${r.cf?'<b>'+r.cf+'</b>':dot}</td>`+
