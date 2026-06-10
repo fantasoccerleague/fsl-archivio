@@ -580,43 +580,121 @@ function drawAnd(k){
 }
 /* ===== statistiche campionato ===== */
 function goalsFsl(p){return Math.max(0,Math.floor((p-60)/6));}
+const num2 = v => (typeof v==='number'? v.toFixed(2).replace('.',','):v);
 const statData={};
 function computeStats(L){
   const ck=CUR+'|'+L.key;if(statData[ck])return statData[ck];
-  const teams=L.generale.map(r=>r[1]);
-  const reale={},tot={},gf={},gs={},gg={},mf={},pf2={},ms={},ps={};
-  teams.forEach(t=>{reale[t]=0;tot[t]=0;gf[t]=0;gs[t]=0;gg[t]=0;mf[t]=0;pf2[t]=0;ms[t]=0;ps[t]=0;});
-  const r3=(rh,ra)=>rh>ra?[3,0]:rh<ra?[0,3]:[1,1];
-  Object.values(L.cal).forEach(round=>{
-    const day=[];
+  const teams=L.generale.map(r=>r[1]);const pos={};teams.forEach((t,i)=>pos[t]=i);
+  const reale={},tot={},gf={},gs={},gg={},mf={},pf2={},ms={},ps={},exp={};
+  teams.forEach(t=>{reale[t]=0;tot[t]=0;gf[t]=0;gs[t]=0;gg[t]=0;mf[t]=0;pf2[t]=0;ms[t]=0;ps[t]=0;exp[t]=0;});
+  const r3=(rh,ra)=>rh>ra?[3,0]:rh<ra?[0,3]:[1,1];const p3=(x,y)=>x>y?3:x<y?0:1;
+  let hi={hscore:null,lscore:null,goals:null,margin:null};
+  Object.keys(L.cal).forEach(gk=>{
+    const round=L.cal[gk];const day=[];
     round.forEach(m=>{const h=m[0],a=m[1],gh=m[2],ga=m[3],ph=+m[4]||0,pa=+m[5]||0;
       gf[h]+=ph;gs[h]+=pa;gf[a]+=pa;gs[a]+=ph;gg[h]++;gg[a]++;
       const rr=r3(gh,ga);reale[h]+=rr[0];reale[a]+=rr[1];
       const tt=r3(goalsFsl(ph-2),goalsFsl(pa));tot[h]+=tt[0];tot[a]+=tt[1];
-      day.push({t:h,f:ph,opp:a});day.push({t:a,f:pa,opp:h});});
+      day.push({t:h,f:ph,opp:a,gr:goalsFsl(ph-2)});day.push({t:a,f:pa,opp:h,gr:goalsFsl(pa)});
+      const tg=gh+ga;if(!hi.goals||tg>hi.goals.tot)hi.goals={h,a,gh,ga,tot:tg,g:gk};
+      const mg=Math.abs(gh-ga);if(mg>0&&(!hi.margin||mg>hi.margin.m)){const win=gh>=ga;hi.margin={h:win?h:a,a:win?a:h,gh:win?gh:ga,ga:win?ga:gh,m:mg,g:gk};}
+      [[h,ph],[a,pa]].forEach(x=>{if(!hi.hscore||x[1]>hi.hscore.v)hi.hscore={t:x[0],v:x[1],g:gk};if(!hi.lscore||x[1]<hi.lscore.v)hi.lscore={t:x[0],v:x[1],g:gk};});});
     if(day.length){const maxF=Math.max.apply(null,day.map(d=>d.f)),minF=Math.min.apply(null,day.map(d=>d.f));
-      day.forEach(d=>{if(d.f===maxF){mf[d.t]++;ms[d.opp]++;}if(d.f===minF){pf2[d.t]++;ps[d.opp]++;}});}
+      day.forEach(d=>{if(d.f===maxF){mf[d.t]++;ms[d.opp]++;}if(d.f===minF){pf2[d.t]++;ps[d.opp]++;}});
+      const n=day.length;day.forEach(d=>{let s=0;day.forEach(e=>{if(e!==d)s+=p3(d.gr,e.gr);});exp[d.t]+=s/(n-1);});}
   });
   const r1=v=>Math.round(v*10)/10;
-  const out=teams.map(t=>({t,reale:reale[t],tot:tot[t],gap:reale[t]-tot[t],gf:r1(gf[t]),gs:r1(gs[t]),g:gg[t],mf:mf[t],pf:pf2[t],ms:ms[t],ps:ps[t]}));
-  statData[ck]=out;return out;
+  const rows=teams.map(t=>({t,_pos:pos[t],reale:reale[t],tot:tot[t],gap:reale[t]-tot[t],gf:r1(gf[t]),gs:r1(gs[t]),g:gg[t],avgF:gg[t]?gf[t]/gg[t]:0,avgS:gg[t]?gs[t]/gg[t]:0,fortuna:r1(reale[t]-exp[t]),mf:mf[t],pf:pf2[t],ms:ms[t],ps:ps[t]}));
+  const res={rows,hi};statData[ck]=res;return res;
 }
+const STAT_TBL={};
+function statArrow(dir){return dir==='asc'?'\u25b2':'\u25bc';}
+function renderStatTable(id){
+  const T=STAT_TBL[id];if(!T)return;
+  const col=T.cols.find(c=>c.k===T.sortK)||T.cols[0];const gv=col.val||(r=>r[col.k]);
+  const arr=T.rows.slice().sort((a,b)=>{let va=gv(a),vb=gv(b),d;if(typeof va==='string'){va=va.toLowerCase();vb=String(vb).toLowerCase();d=va<vb?-1:va>vb?1:0;}else d=va-vb;if(d!==0)return T.dir==='asc'?d:-d;return a._pos-b._pos;});
+  const th=c=>{const act=c.k===T.sortK;return `<th class="${c.align==='left'?'lft ':''}sortable${act?' act':''}" data-tbl="${id}" data-k="${c.k}">${c.label}<span class="sar">${act?statArrow(T.dir):'\u25bf'}</span></th>`;};
+  let head;
+  if(T.cols.some(c=>c.group)){
+    const c0=T.cols[0],a0=c0.k===T.sortK;
+    let g1=`<tr><th rowspan="2" class="${c0.align==='left'?'lft ':''}sortable${a0?' act':''}" data-tbl="${id}" data-k="${c0.k}">${c0.label}<span class="sar">${a0?statArrow(T.dir):'\u25bf'}</span></th>`;
+    let i=1;while(i<T.cols.length){const gn=T.cols[i].group;let j=i,sp=0;while(j<T.cols.length&&T.cols[j].group===gn){sp++;j++;}g1+=`<th colspan="${sp}" class="grp">${gn}</th>`;i=j;}
+    head=g1+'</tr><tr>'+T.cols.slice(1).map(th).join('')+'</tr>';
+  } else head='<tr>'+T.cols.map(th).join('')+'</tr>';
+  const body=arr.map(r=>'<tr>'+T.cols.map(c=>c.cell(r)).join('')+'</tr>').join('');
+  document.getElementById(id).innerHTML=`<table style="min-width:${T.minw||440}px"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+function statSortClick(e){const th=e.target.closest?e.target.closest('th[data-tbl][data-k]'):null;if(!th)return;const id=th.dataset.tbl,k=th.dataset.k,T=STAT_TBL[id];if(!T)return;const c=T.cols.find(x=>x.k===k);if(T.sortK===k)T.dir=T.dir==='asc'?'desc':'asc';else{T.sortK=k;T.dir=(c&&c.defaultDir)||'desc';}renderStatTable(id);}
 function buildStat(k){
-  const L=D().leagues.find(x=>x.key===k);if(!L)return;const S=computeStats(L);
-  const avg=(v,g)=>g?num(Math.round(v/g*100)/100):'\u2013';
-  const b=S.slice().sort((a,b)=>b.gap-a.gap||b.reale-a.reale).map(r=>`<tr><td class="team">${tl(r.t)}</td><td>${r.tot}</td><td class="pts">${r.reale}</td><td class="dg ${r.gap>0?'pos-v':r.gap<0?'neg-v':''}">${r.gap>0?'+':''}${r.gap}</td></tr>`).join('');
-  const fs=S.slice().sort((a,b)=>b.gf-a.gf).map(r=>`<tr><td class="team">${tl(r.t)}</td><td class="pts">${num(r.gf)}</td><td style="color:var(--muted)">${avg(r.gf,r.g)}</td><td>${num(r.gs)}</td><td style="color:var(--muted)">${avg(r.gs,r.g)}</td></tr>`).join('');
-  const bw=S.slice().sort((a,b)=>b.mf-a.mf||a.pf-b.pf).map(r=>`<tr><td class="team">${tl(r.t)}</td><td style="color:var(--green);font-weight:700">${r.mf||0}</td><td style="color:var(--red);font-weight:700">${r.ms||0}</td><td style="color:var(--red);font-weight:700">${r.pf||0}</td><td style="color:var(--green);font-weight:700">${r.ps||0}</td></tr>`).join('');
+  const L=D().leagues.find(x=>x.key===k);if(!L)return;const S=computeStats(L);const R=S.rows,hi=S.hi;
+  if(!window._ssb){window._ssb=1;document.addEventListener('click',statSortClick);}
+  const nm=r=>`<td class="team">${tl(r.t)}</td>`;
+  const best=(key,mode)=>R.slice().sort((a,b)=>mode==='min'?a[key]-b[key]:b[key]-a[key])[0];
+  const aiut=best('gap','max'),pen=best('gap','min'),fort=best('fortuna','max'),sfo=best('fortuna','min'),att=best('gf','max'),dif=best('gs','min');
+  const cards=[
+    {ic:'\ud83d\udd25',lab:'Punteggio pi\u00f9 alto di giornata',big:tl(hi.hscore.t),sub:num(hi.hscore.v)+' punti \u00b7 Giornata '+hi.hscore.g},
+    {ic:'\ud83e\udd76',lab:'Punteggio pi\u00f9 basso di giornata',big:tl(hi.lscore.t),sub:num(hi.lscore.v)+' punti \u00b7 Giornata '+hi.lscore.g},
+    {ic:'\u26bd',lab:'Gara con pi\u00f9 gol',sm:1,big:tl(hi.goals.h)+' <b>'+hi.goals.gh+'\u2013'+hi.goals.ga+'</b> '+tl(hi.goals.a),sub:hi.goals.tot+' gol totali \u00b7 Giornata '+hi.goals.g},
+    {ic:'\ud83d\udca5',lab:'Vittoria pi\u00f9 larga',sm:1,big:tl(hi.margin.h)+' <b>'+hi.margin.gh+'\u2013'+hi.margin.ga+'</b> '+tl(hi.margin.a),sub:'scarto di '+hi.margin.m+' gol \u00b7 Giornata '+hi.margin.g},
+    {ic:'\ud83c\udf40',lab:'Pi\u00f9 aiutata dal +2',big:tl(aiut.t),sub:(aiut.gap>0?'+':'')+aiut.gap+' punti grazie al +2'},
+    {ic:'\ud83d\udc94',lab:'Pi\u00f9 penalizzata dal +2',big:tl(pen.t),sub:pen.gap+' punti per colpa del +2'},
+    {ic:'\ud83c\udf08',lab:'Squadra pi\u00f9 fortunata',big:tl(fort.t),sub:(fort.fortuna>0?'+':'')+num(fort.fortuna)+' punti sul merito atteso'},
+    {ic:'\ud83d\ude2d',lab:'Squadra pi\u00f9 sfortunata',big:tl(sfo.t),sub:num(sfo.fortuna)+' punti sul merito atteso'},
+    {ic:'\ud83c\udfaf',lab:'Miglior attacco',big:tl(att.t),sub:num(att.gf)+' punti fatti \u00b7 media '+num2(att.avgF)},
+    {ic:'\ud83e\uddf1',lab:'Miglior difesa',big:tl(dif.t),sub:num(dif.gs)+' punti subiti \u00b7 media '+num2(dif.avgS)}
+  ];
+  const cardsH='<div class="hi-grid">'+cards.map(c=>`<div class="hi-card"><div class="hi-ic">${c.ic}</div><div class="hi-lab">${c.lab}</div><div class="hi-big${c.sm?' sm':''}">${c.big}</div><div class="hi-sub">${c.sub}</div></div>`).join('')+'</div>';
+  const idB='stbl_'+k+'_b',idF='stbl_'+k+'_f',idD='stbl_'+k+'_d';
+  STAT_TBL[idB]={minw:440,sortK:'reale',dir:'desc',rows:R,cols:[
+    {k:'t',label:'Squadra',align:'left',val:r=>r.t,cell:nm},
+    {k:'tot',label:'Senza +2',defaultDir:'desc',cell:r=>`<td>${r.tot}</td>`},
+    {k:'reale',label:'Reali',defaultDir:'desc',cell:r=>`<td class="pts">${r.reale}</td>`},
+    {k:'gap',label:'Gap',defaultDir:'desc',cell:r=>`<td class="dg ${r.gap>0?'pos-v':r.gap<0?'neg-v':''}">${r.gap>0?'+':''}${r.gap}</td>`}]};
+  STAT_TBL[idF]={minw:480,sortK:'gf',dir:'desc',rows:R,cols:[
+    {k:'t',label:'Squadra',align:'left',val:r=>r.t,cell:nm},
+    {k:'gf',label:'Fatti',defaultDir:'desc',cell:r=>`<td class="pts">${num(r.gf)}</td>`},
+    {k:'avgF',label:'Media',defaultDir:'desc',cell:r=>`<td style="color:var(--muted)">${num2(r.avgF)}</td>`},
+    {k:'gs',label:'Subiti',defaultDir:'asc',cell:r=>`<td>${num(r.gs)}</td>`},
+    {k:'avgS',label:'Media',defaultDir:'asc',cell:r=>`<td style="color:var(--muted)">${num2(r.avgS)}</td>`}]};
+  STAT_TBL[idD]={minw:560,sortK:'mf',dir:'desc',rows:R,cols:[
+    {k:'t',label:'Squadra',align:'left',val:r=>r.t,cell:nm},
+    {k:'mf',label:'Fatto',group:'Miglior punteggio',defaultDir:'desc',cell:r=>`<td style="color:var(--green);font-weight:700">${r.mf||0}</td>`},
+    {k:'ms',label:'Sub\u00ecto',group:'Miglior punteggio',defaultDir:'desc',cell:r=>`<td style="color:var(--red);font-weight:700">${r.ms||0}</td>`},
+    {k:'pf',label:'Fatto',group:'Peggior punteggio',defaultDir:'desc',cell:r=>`<td style="color:var(--red);font-weight:700">${r.pf||0}</td>`},
+    {k:'ps',label:'Sub\u00ecto',group:'Peggior punteggio',defaultDir:'desc',cell:r=>`<td style="color:var(--green);font-weight:700">${r.ps||0}</td>`}]};
   document.getElementById('stat-'+k).innerHTML=`
-   <div class="panel-title" style="margin-top:4px">Impatto del bonus +2 in casa</div>
-   <p style="color:var(--muted);font-size:13px;margin:2px 0 10px"><b>Senza +2</b>: punti che la squadra avrebbe ottenuto se il bonus casa non esistesse \u00b7 <b>Reali</b>: punti effettivi \u00b7 <b>Gap</b>: differenza (verde = ha beneficiato del +2, rosso = penalizzato).</p>
-   <div class="table-wrap"><div class="scroll"><table style="min-width:420px"><thead><tr><th class="lft">Squadra</th><th>Senza +2</th><th class="pts">Reali</th><th>Gap</th></tr></thead><tbody>${b}</tbody></table></div></div>
+   <div class="panel-title" style="margin-top:4px">In sintesi</div>
+   ${cardsH}
+   <div class="panel-title" style="margin-top:22px">Impatto del bonus +2 in casa</div>
+   <p class="stat-note"><b>Senza +2</b>: punti che la squadra avrebbe ottenuto se il bonus casa non esistesse \u00b7 <b>Reali</b>: punti effettivi \u00b7 <b>Gap</b>: differenza (verde = ha beneficiato del +2, rosso = penalizzato).</p>
+   <div class="table-wrap"><div class="scroll" id="${idB}"></div></div>
    <div class="panel-title" style="margin-top:22px">Punti fatti e subiti</div>
-   <div class="table-wrap"><div class="scroll"><table style="min-width:480px"><thead><tr><th class="lft">Squadra</th><th class="pts">Fatti</th><th>Media</th><th>Subiti</th><th>Media</th></tr></thead><tbody>${fs}</tbody></table></div></div>
+   <div class="table-wrap"><div class="scroll" id="${idF}"></div></div>
    <div class="panel-title" style="margin-top:22px">Punteggi di giornata</div>
-   <p style="color:var(--muted);font-size:13px;margin:2px 0 10px">Per ogni giornata, quante volte la squadra ha realizzato il punteggio pi\u00f9 alto/pi\u00f9 basso (<b>Fatto</b>) e quante volte se l'\u00e8 visto realizzare contro (<b>Sub\u00ecto</b>).</p>
-   <div class="table-wrap"><div class="scroll"><table style="min-width:560px"><thead><tr><th rowspan="2" class="lft">Squadra</th><th colspan="2" class="grp">Miglior punteggio</th><th colspan="2" class="grp">Peggior punteggio</th></tr><tr><th>Fatto</th><th>Sub\u00ecto</th><th>Fatto</th><th>Sub\u00ecto</th></tr></thead><tbody>${bw}</tbody></table></div></div>`;
+   <p class="stat-note">Per ogni giornata, quante volte la squadra ha realizzato il punteggio pi\u00f9 alto/pi\u00f9 basso (<b>Fatto</b>) e quante volte se l'\u00e8 visto realizzare contro (<b>Sub\u00ecto</b>).</p>
+   <div class="table-wrap"><div class="scroll" id="${idD}"></div></div>
+   <p class="stat-note" style="margin-top:16px">Clicca sull'intestazione di una colonna per ordinare. \u201cFortuna\u201d confronta i punti reali con quelli attesi giocando ogni giornata contro la media del campionato (senza +2): pi\u00f9 del previsto = fortunata, meno = sfortunata.</p>`;
+  renderStatTable(idB);renderStatTable(idF);renderStatTable(idD);
 }
+document.head.insertAdjacentHTML('beforeend','<style>'
++'.hi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(225px,1fr));gap:14px;margin:6px 0 4px}'
++'.hi-card{position:relative;overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px;box-shadow:0 1px 2px rgba(20,50,80,.05)}'
++'.hi-card::after{content:"";position:absolute;top:-34px;right:-30px;width:118px;height:118px;border-radius:50%;background:radial-gradient(circle,rgba(245,170,60,.30),rgba(245,170,60,0) 70%)}'
++'.hi-ic{font-size:23px;line-height:1}'
++'.hi-lab{margin-top:11px;font-size:10.5px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}'
++'.hi-big{margin-top:5px;font-family:"Anton",sans-serif;font-weight:400;font-size:22px;letter-spacing:.4px;color:var(--ink);line-height:1.12;position:relative}'
++'.hi-big.sm{font-size:15.5px}'
++'.hi-big .tl{color:var(--ink);font:inherit;cursor:pointer}'
++'.hi-big .tl:hover{color:var(--blue)}'
++'.hi-big b{color:var(--green-deep)}'
++'.hi-sub{margin-top:6px;font-size:13px;font-weight:600;color:var(--gold);position:relative}'
++'.stat-note{color:var(--muted);font-size:13px;margin:2px 0 10px}'
++'th.sortable{cursor:pointer;user-select:none;white-space:nowrap}'
++'th.sortable:hover{color:var(--blue)}'
++'th.act{color:var(--blue)}'
++'.sar{font-size:9px;margin-left:3px;opacity:.45}'
++'th.act .sar{opacity:1}'
++'</style>');
 /* ===== coppe ===== */
 function legHTML(l){const[h,a,hg,ag,hp,ap]=l;const hw=hg>ag,aw=ag>hg;
   return `<div class="leg"><span class="nm ${hw?'win':''}">${tl(h)}<span class="fp">${num(hp)}</span></span><span class="sc ${hw?'win':''}">${hg}</span><span style="color:var(--faint)">&ndash;</span><span class="sc ${aw?'win':''}">${ag}</span><span class="nm r ${aw?'win':''}">${tl(a)}<span class="fp">${num(ap)}</span></span></div>`;}
