@@ -333,15 +333,15 @@ function buildShell(){
   const _nc=document.getElementById('navcrest');if(_nc&&_nc.tagName==='IMG'&&!_nc.getAttribute('src'))_nc.src=LOGO;
 
   let html=HOME;
-  d.leagues.forEach(L=>{const hasCal=L.cal&&Object.keys(L.cal).length>0;html+=`
+  d.leagues.forEach(L=>{const hasCal=L.cal&&Object.keys(L.cal).length>0;const hasPf=hasCal&&Object.values(L.cal).some(g=>g.some(m=>(+m[4]||0)>0||(+m[5]||0)>0));html+=`
    <section class="view" id="v-${L.key}">
      <div class="sec-head"><div><div class="kicker">Stagione ${d.meta.label}</div><h2>${L.name}</h2></div><p>${L.desc||''}</p></div>
      ${L.generale&&L.generale.length?champBanner(L.generale[0][1],{comp:L.name,role:(L.key==='OPEN'?'Vincitore':'Campione'),top:true}):''}
-     <div class="controls"><div class="tabs" id="tabs-${L.key}"><button class="on" data-k="classifica">Classifica</button>${hasCal?'<button data-k="esplora">Esplora Giornate</button><button data-k="andamento">Andamento</button>':''}</div>
+     <div class="controls"><div class="tabs" id="tabs-${L.key}"><button class="on" data-k="classifica">Classifica</button>${hasCal?'<button data-k="esplora">Esplora Giornate</button><button data-k="andamento">Andamento</button>':''}${hasPf?'<button data-k="stat">Statistiche</button>':''}</div>
        <div class="search" id="srch-${L.key}"><span class="mag">&#9906;</span><input placeholder="Cerca squadra&hellip;" oninput="filt('${L.key}',this.value)"></div></div>
      <div id="class-${L.key}"><div class="table-wrap"><div class="scroll"><div id="tbl-${L.key}"></div></div></div>
        <div class="legend" id="leg-${L.key}"></div></div>
-     ${hasCal?`<div id="exp-${L.key}" style="display:none"></div><div id="and-${L.key}" style="display:none"></div>`:''}
+     ${hasCal?`<div id="exp-${L.key}" style="display:none"></div><div id="and-${L.key}" style="display:none"></div>`:''}${hasPf?`<div id="stat-${L.key}" style="display:none"></div>`:''}
      <div class="back" onclick="go('home')">&larr; Torna alla Home</div>
    </section>`;});
   d.cups.forEach(C=>{
@@ -578,6 +578,45 @@ function drawAnd(k){
     const lv=arr[N-1];if(lv!=null){const lx=X(N),ly=Y(lv);g+=`<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="${showAll?2.1:3.6}" fill="${col}"/>`;if(!showAll)g+=`<text x="${(lx+6).toFixed(1)}" y="${(ly+3.5).toFixed(1)}" font-size="10.5" font-weight="700" fill="${col}">${esc(t)}</text>`;}});
   document.getElementById('andsvg-'+k).innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" preserveAspectRatio="xMidYMid meet" style="max-width:100%;height:auto;display:block;font-family:'Archivo',sans-serif">${g}</svg>`;
 }
+/* ===== statistiche campionato ===== */
+function goalsFsl(p){return Math.max(0,Math.floor((p-60)/6));}
+const statData={};
+function computeStats(L){
+  const ck=CUR+'|'+L.key;if(statData[ck])return statData[ck];
+  const teams=L.generale.map(r=>r[1]);
+  const reale={},tot={},gf={},gs={},gg={},mf={},pf2={},ms={},ps={};
+  teams.forEach(t=>{reale[t]=0;tot[t]=0;gf[t]=0;gs[t]=0;gg[t]=0;mf[t]=0;pf2[t]=0;ms[t]=0;ps[t]=0;});
+  const r3=(rh,ra)=>rh>ra?[3,0]:rh<ra?[0,3]:[1,1];
+  Object.values(L.cal).forEach(round=>{
+    const day=[];
+    round.forEach(m=>{const h=m[0],a=m[1],gh=m[2],ga=m[3],ph=+m[4]||0,pa=+m[5]||0;
+      gf[h]+=ph;gs[h]+=pa;gf[a]+=pa;gs[a]+=ph;gg[h]++;gg[a]++;
+      const rr=r3(gh,ga);reale[h]+=rr[0];reale[a]+=rr[1];
+      const tt=r3(goalsFsl(ph-2),goalsFsl(pa));tot[h]+=tt[0];tot[a]+=tt[1];
+      day.push({t:h,f:ph,opp:a});day.push({t:a,f:pa,opp:h});});
+    if(day.length){const maxF=Math.max.apply(null,day.map(d=>d.f)),minF=Math.min.apply(null,day.map(d=>d.f));
+      day.forEach(d=>{if(d.f===maxF){mf[d.t]++;ms[d.opp]++;}if(d.f===minF){pf2[d.t]++;ps[d.opp]++;}});}
+  });
+  const r1=v=>Math.round(v*10)/10;
+  const out=teams.map(t=>({t,reale:reale[t],tot:tot[t],gap:reale[t]-tot[t],gf:r1(gf[t]),gs:r1(gs[t]),g:gg[t],mf:mf[t],pf:pf2[t],ms:ms[t],ps:ps[t]}));
+  statData[ck]=out;return out;
+}
+function buildStat(k){
+  const L=D().leagues.find(x=>x.key===k);if(!L)return;const S=computeStats(L);
+  const avg=(v,g)=>g?num(Math.round(v/g*100)/100):'\u2013';
+  const b=S.slice().sort((a,b)=>b.gap-a.gap||b.reale-a.reale).map(r=>`<tr><td class="team">${tl(r.t)}</td><td>${r.tot}</td><td class="pts">${r.reale}</td><td class="dg ${r.gap>0?'pos-v':r.gap<0?'neg-v':''}">${r.gap>0?'+':''}${r.gap}</td></tr>`).join('');
+  const fs=S.slice().sort((a,b)=>b.gf-a.gf).map(r=>`<tr><td class="team">${tl(r.t)}</td><td class="pts">${num(r.gf)}</td><td style="color:var(--muted)">${avg(r.gf,r.g)}</td><td>${num(r.gs)}</td><td style="color:var(--muted)">${avg(r.gs,r.g)}</td></tr>`).join('');
+  const bw=S.slice().sort((a,b)=>b.mf-a.mf||a.pf-b.pf).map(r=>`<tr><td class="team">${tl(r.t)}</td><td style="color:var(--green);font-weight:700">${r.mf||0}</td><td style="color:var(--red);font-weight:700">${r.ms||0}</td><td style="color:var(--red);font-weight:700">${r.pf||0}</td><td style="color:var(--green);font-weight:700">${r.ps||0}</td></tr>`).join('');
+  document.getElementById('stat-'+k).innerHTML=`
+   <div class="panel-title" style="margin-top:4px">Impatto del bonus +2 in casa</div>
+   <p style="color:var(--muted);font-size:13px;margin:2px 0 10px"><b>Senza +2</b>: punti che la squadra avrebbe ottenuto se il bonus casa non esistesse \u00b7 <b>Reali</b>: punti effettivi \u00b7 <b>Gap</b>: differenza (verde = ha beneficiato del +2, rosso = penalizzato).</p>
+   <div class="table-wrap"><div class="scroll"><table style="min-width:420px"><thead><tr><th class="lft">Squadra</th><th>Senza +2</th><th class="pts">Reali</th><th>Gap</th></tr></thead><tbody>${b}</tbody></table></div></div>
+   <div class="panel-title" style="margin-top:22px">Punti fatti e subiti</div>
+   <div class="table-wrap"><div class="scroll"><table style="min-width:480px"><thead><tr><th class="lft">Squadra</th><th class="pts">Fatti</th><th>Media</th><th>Subiti</th><th>Media</th></tr></thead><tbody>${fs}</tbody></table></div></div>
+   <div class="panel-title" style="margin-top:22px">Punteggi di giornata</div>
+   <p style="color:var(--muted);font-size:13px;margin:2px 0 10px">Per ogni giornata, quante volte la squadra ha realizzato il punteggio pi\u00f9 alto/pi\u00f9 basso (<b>Fatto</b>) e quante volte se l'\u00e8 visto realizzare contro (<b>Sub\u00ecto</b>).</p>
+   <div class="table-wrap"><div class="scroll"><table style="min-width:560px"><thead><tr><th rowspan="2" class="lft">Squadra</th><th colspan="2" class="grp">Miglior punteggio</th><th colspan="2" class="grp">Peggior punteggio</th></tr><tr><th>Fatto</th><th>Sub\u00ecto</th><th>Fatto</th><th>Sub\u00ecto</th></tr></thead><tbody>${bw}</tbody></table></div></div>`;
+}
 /* ===== coppe ===== */
 function legHTML(l){const[h,a,hg,ag,hp,ap]=l;const hw=hg>ag,aw=ag>hg;
   return `<div class="leg"><span class="nm ${hw?'win':''}">${tl(h)}<span class="fp">${num(hp)}</span></span><span class="sc ${hw?'win':''}">${hg}</span><span style="color:var(--faint)">&ndash;</span><span class="sc ${aw?'win':''}">${ag}</span><span class="nm r ${aw?'win':''}">${tl(a)}<span class="fp">${num(ap)}</span></span></div>`;}
@@ -647,8 +686,10 @@ function bindTabs(){
     document.getElementById('class-'+L.key).style.display=b.dataset.k==='classifica'?'block':'none';
     const ex=document.getElementById('exp-'+L.key);if(ex)ex.style.display=b.dataset.k==='esplora'?'block':'none';
     const an=document.getElementById('and-'+L.key);if(an)an.style.display=b.dataset.k==='andamento'?'block':'none';
+    const sx=document.getElementById('stat-'+L.key);if(sx)sx.style.display=b.dataset.k==='stat'?'block':'none';
     document.getElementById('srch-'+L.key).style.display=b.dataset.k==='classifica'?'flex':'none';
-    if(b.dataset.k==='andamento')buildAndamento(L.key);});});
+    if(b.dataset.k==='andamento')buildAndamento(L.key);
+    if(b.dataset.k==='stat')buildStat(L.key);});});
   d.cups.forEach(C=>{const box=document.getElementById('tabs-'+C.key);if(!box)return;box.querySelectorAll('button').forEach(b=>b.onclick=()=>{
     box.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
     ['fin','gir','pl','pre'].forEach(p=>{const e=document.getElementById(p+'-'+C.key);if(e)e.style.display='none';});
