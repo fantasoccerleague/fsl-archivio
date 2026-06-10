@@ -62,7 +62,8 @@
   .comp-card .go .arr{transition:.25s}
   .comp-card:hover .go .arr{transform:translateX(5px);color:var(--green)}
   .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0 18px}
-  .tabs{display:flex;gap:4px;background:var(--panel2);padding:4px;border-radius:11px;border:1px solid var(--line)}
+  .tabs{display:flex;flex-wrap:wrap;gap:4px;background:var(--panel2);padding:4px;border-radius:11px;border:1px solid var(--line)}
+  @media(max-width:620px){.controls .tabs{width:100%}.controls .tabs button{flex:1 1 38%;text-align:center;padding:9px 8px;font-size:12.5px;line-height:1.15}}
   .tabs button{border:0;background:transparent;color:var(--muted);font-family:inherit;font-weight:700;font-size:13px;padding:8px 16px;border-radius:8px;cursor:pointer;transition:.18s;letter-spacing:.3px}
   .tabs button:hover{color:var(--ink)}
   .tabs button.on{background:var(--green);color:#04130c}
@@ -337,7 +338,7 @@ function buildShell(){
    <section class="view" id="v-${L.key}">
      <div class="sec-head"><div><div class="kicker">Stagione ${d.meta.label}</div><h2>${L.name}</h2></div><p>${L.desc||''}</p></div>
      ${L.generale&&L.generale.length?champBanner(L.generale[0][1],{comp:L.name,role:(L.key==='OPEN'?'Vincitore':'Campione'),top:true}):''}
-     <div class="controls"><div class="tabs" id="tabs-${L.key}"><button class="on" data-k="classifica">Classifica</button>${hasCal?'<button data-k="esplora">Esplora Giornate</button><button data-k="andamento">Andamento</button>':''}${hasPf?'<button data-k="stat">Statistiche</button>':''}</div>
+     <div class="controls"><div class="tabs" id="tabs-${L.key}"><button class="on" data-k="classifica">Classifica</button>${hasCal?'<button data-k="esplora">Esplora Giornate</button><button data-k="andamento">Andamento</button>':''}${hasPf?'<button data-k="stat">L’angolo di Alberto</button>':''}</div>
        <div class="search" id="srch-${L.key}"><span class="mag">&#9906;</span><input placeholder="Cerca squadra&hellip;" oninput="filt('${L.key}',this.value)"></div></div>
      <div id="class-${L.key}"><div class="table-wrap"><div class="scroll"><div id="tbl-${L.key}"></div></div></div>
        <div class="legend" id="leg-${L.key}"></div></div>
